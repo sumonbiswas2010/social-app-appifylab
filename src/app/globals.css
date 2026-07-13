@@ -1,0 +1,16 @@
+@import 'tailwindcss';
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: 'Poppins', sans-serif;
+  /* palette lifted from the provided design css */
+  --color-brand: #377dff;
+  --color-brand-2: #1890ff;
+  --color-page: #f0f2f5;
+  --color-ink: #2d3748;
+  --color-muted: #666666;
+  --color-dpage: #112032;
+  --color-dcard: #232e42;
+  --color-dhover: #223855;
+}
