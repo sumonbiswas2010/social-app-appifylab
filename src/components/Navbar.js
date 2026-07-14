@@ -1,19 +1,67 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { apiCall } from '@/lib/apiCall';
+import { timeAgo } from '@/lib/timeAgo';
 import Avatar from './Avatar';
+import { useChat } from './chat/ChatProvider';
 
-const notifications = [
-  { img: '/assets/images/friend-req.png', text: <><span className="_notify_txt_link">Steve Jobs</span> posted a link in your timeline.</> },
-  { img: '/assets/images/profile-1.png', text: <>An admin changed the name of the group <span className="_notify_txt_link">Freelancer usa</span></> },
-  { img: '/assets/images/friend-req.png', text: <><span className="_notify_txt_link">Steve Jobs</span> posted a link in your timeline.</> },
-];
+function notificationText(n) {
+  const name = n.actor ? `${n.actor.firstName} ${n.actor.lastName}` : 'Someone';
+  if (n.type === 'post') {
+    return <><span className="_notify_txt_link">{name}</span> published a new post.</>;
+  }
+  return <><span className="_notify_txt_link">{name}</span> sent you a notification.</>;
+}
 
 export default function Navbar({ me }) {
+  const chat = useChat();
   const [notifyOpen, setNotifyOpen] = useState(false);
+  const [msgOpen, setMsgOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
+
+  const [notifs, setNotifs] = useState(null);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [filter, setFilter] = useState('all');
+
+  useEffect(() => {
+    if (!me) return;
+    apiCall('/api/notifications')
+      .then((d) => {
+        setNotifs(d.notifications);
+        setUnreadCount(d.unreadCount);
+      })
+      .catch(() => {});
+  }, [me]);
+
+  // Realtime: prepend incoming notifications and bump the badge
+  useEffect(() => {
+    const s = chat?.socket;
+    if (!s) return;
+    const onNotification = (n) => {
+      setNotifs((cur) => [n, ...(cur || [])]);
+      setUnreadCount((c) => c + 1);
+    };
+    s.on('notification:new', onNotification);
+    return () => s.off('notification:new', onNotification);
+  }, [chat?.socket]);
+
+  function markAllRead() {
+    apiCall('/api/notifications/read', { method: 'POST', body: {} })
+      .then(() => {
+        setNotifs((cur) => cur?.map((n) => ({ ...n, read: true })) || cur);
+        setUnreadCount(0);
+      })
+      .catch(() => {});
+  }
+
+  function markOneRead(n) {
+    if (n.read) return;
+    setNotifs((cur) => cur.map((x) => (x.id === n.id ? { ...x, read: true } : x)));
+    setUnreadCount((c) => Math.max(0, c - 1));
+    apiCall('/api/notifications/read', { method: 'POST', body: { id: n.id } }).catch(() => {});
+  }
 
   async function logout() {
     setLoggingOut(true);
@@ -24,6 +72,9 @@ export default function Navbar({ me }) {
       setLoggingOut(false);
     }
   }
+
+  const shownNotifs = (notifs || []).filter((n) => (filter === 'unread' ? !n.read : true));
+  const msgUnread = chat?.totalUnread || 0;
 
   return (
     <nav className="navbar navbar-expand-lg navbar-light _header_nav _padd_t10">
@@ -76,35 +127,67 @@ export default function Navbar({ me }) {
               <span
                 id="_notify_btn"
                 className="nav-link _header_nav_link _header_notify_btn"
-                onClick={() => setNotifyOpen((v) => !v)}
+                onClick={() => {
+                  setNotifyOpen((v) => !v);
+                  setMsgOpen(false);
+                }}
                 role="button"
                 tabIndex={0}
               >
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="22" fill="none" viewBox="0 0 20 22">
                   <path fill="#000" fillOpacity=".6" fillRule="evenodd" d="M7.547 19.55c.533.59 1.218.915 1.93.915.714 0 1.403-.324 1.938-.916a.777.777 0 011.09-.056c.318.284.344.77.058 1.084-.832.917-1.927 1.423-3.086 1.423h-.002c-1.155-.001-2.248-.506-3.077-1.424a.762.762 0 01.057-1.083.774.774 0 011.092.057zM9.527 0c4.58 0 7.657 3.543 7.657 6.85 0 1.702.436 2.424.899 3.19.457.754.976 1.612.976 3.233-.36 4.14-4.713 4.478-9.531 4.478-4.818 0-9.172-.337-9.528-4.413-.003-1.686.515-2.544.973-3.299l.161-.27c.398-.679.737-1.417.737-2.918C1.871 3.543 4.948 0 9.528 0zm0 1.535c-3.6 0-6.11 2.802-6.11 5.316 0 2.127-.595 3.11-1.12 3.978-.422.697-.755 1.247-.755 2.444.173 1.93 1.455 2.944 7.986 2.944 6.494 0 7.817-1.06 7.988-3.01-.003-1.13-.336-1.681-.757-2.378-.526-.868-1.12-1.851-1.12-3.978 0-2.514-2.51-5.316-6.111-5.316z" clipRule="evenodd" />
                 </svg>
-                <span className="_counting">6</span>
+                {unreadCount > 0 && <span className="_counting">{unreadCount}</span>}
                 <div id="_notify_drop" className={`_notification_dropdown${notifyOpen ? ' show' : ''}`} onClick={(e) => e.stopPropagation()}>
                   <div className="_notifications_content">
                     <h4 className="_notifications_content_title">Notifications</h4>
                   </div>
                   <div className="_notifications_drop_box">
                     <div className="_notifications_drop_btn_grp">
-                      <button type="button" className="_notifications_btn_link">All</button>
-                      <button type="button" className="_notifications_btn_link1">Unread</button>
+                      <button
+                        type="button"
+                        className={filter === 'all' ? '_notifications_btn_link' : '_notifications_btn_link1'}
+                        onClick={() => setFilter('all')}
+                      >
+                        All
+                      </button>
+                      <button
+                        type="button"
+                        className={filter === 'unread' ? '_notifications_btn_link' : '_notifications_btn_link1'}
+                        onClick={() => setFilter('unread')}
+                      >
+                        Unread
+                      </button>
+                      {unreadCount > 0 && (
+                        <button type="button" className="_notifications_btn_link1" onClick={markAllRead}>
+                          Mark all as read
+                        </button>
+                      )}
                     </div>
                     <div className="_notifications_all">
-                      {notifications.map((n, i) => (
-                        <div className="_notification_box" key={i}>
+                      {!notifs && <p className="_notification_para" style={{ padding: 12 }}>Loading...</p>}
+                      {notifs && shownNotifs.length === 0 && (
+                        <p className="_notification_para" style={{ padding: 12 }}>
+                          {filter === 'unread' ? 'No unread notifications' : 'No notifications yet'}
+                        </p>
+                      )}
+                      {shownNotifs.map((n) => (
+                        <div
+                          className="_notification_box"
+                          key={n.id}
+                          onClick={() => markOneRead(n)}
+                          style={n.read ? { opacity: 0.65 } : undefined}
+                        >
                           <div className="_notification_image">
-                            <img src={n.img} alt="" className="_notify_img" />
+                            <Avatar user={n.actor} size="h-10 w-10" />
                           </div>
                           <div className="_notification_txt">
-                            <p className="_notification_para">{n.text}</p>
+                            <p className="_notification_para">{notificationText(n)}</p>
                             <div className="_nitification_time">
-                              <span>42 minutes ago</span>
+                              <span>{timeAgo(n.createdAt)}</span>
                             </div>
                           </div>
+                          {!n.read && <span className="_toast_dot" />}
                         </div>
                       ))}
                     </div>
@@ -113,12 +196,76 @@ export default function Navbar({ me }) {
               </span>
             </li>
             <li className="nav-item _header_nav_item">
-              <a className="nav-link _header_nav_link" href="#0">
+              <span
+                className="nav-link _header_nav_link _header_notify_btn"
+                onClick={() => {
+                  setMsgOpen((v) => !v);
+                  setNotifyOpen(false);
+                }}
+                role="button"
+                tabIndex={0}
+              >
                 <svg xmlns="http://www.w3.org/2000/svg" width="23" height="22" fill="none" viewBox="0 0 23 22">
                   <path fill="#000" fillOpacity=".6" fillRule="evenodd" d="M11.43 0c2.96 0 5.743 1.143 7.833 3.22 4.32 4.29 4.32 11.271 0 15.562C17.145 20.886 14.293 22 11.405 22c-1.575 0-3.16-.33-4.643-1.012-.437-.174-.847-.338-1.14-.338-.338.002-.793.158-1.232.308-.9.307-2.022.69-2.852-.131-.826-.822-.445-1.932-.138-2.826.152-.44.307-.895.307-1.239 0-.282-.137-.642-.347-1.161C-.57 11.46.322 6.47 3.596 3.22A11.04 11.04 0 0111.43 0zm0 1.535A9.5 9.5 0 004.69 4.307a9.463 9.463 0 00-1.91 10.686c.241.592.474 1.17.474 1.77 0 .598-.207 1.201-.39 1.733-.15.439-.378 1.1-.231 1.245.143.147.813-.085 1.255-.235.53-.18 1.133-.387 1.73-.391.597 0 1.161.225 1.758.463 3.655 1.679 7.98.915 10.796-1.881 3.716-3.693 3.716-9.7 0-13.391a9.5 9.5 0 00-6.74-2.77zm4.068 8.867c.57 0 1.03.458 1.03 1.024 0 .566-.46 1.023-1.03 1.023a1.023 1.023 0 11-.01-2.047h.01zm-4.131 0c.568 0 1.03.458 1.03 1.024 0 .566-.462 1.023-1.03 1.023a1.03 1.03 0 01-1.035-1.024c0-.566.455-1.023 1.025-1.023h.01zm-4.132 0c.568 0 1.03.458 1.03 1.024 0 .566-.462 1.023-1.03 1.023a1.022 1.022 0 11-.01-2.047h.01z" clipRule="evenodd" />
                 </svg>
-                <span className="_counting">2</span>
-              </a>
+                {msgUnread > 0 && <span className="_counting">{msgUnread}</span>}
+                <div className={`_notification_dropdown${msgOpen ? ' show' : ''}`} onClick={(e) => e.stopPropagation()}>
+                  <div className="_notifications_content">
+                    <h4 className="_notifications_content_title">Chats</h4>
+                  </div>
+                  <div className="_notifications_drop_box">
+                    <div className="_notifications_drop_btn_grp">
+                      <a href="/messages" className="_notifications_btn_link1">Open Messenger</a>
+                    </div>
+                    <div className="_notifications_all">
+                      {(chat?.convos || []).length === 0 && (
+                        <p className="_notification_para" style={{ padding: 12 }}>
+                          No conversations yet. Say hi to a friend from the sidebar!
+                        </p>
+                      )}
+                      {(chat?.convos || []).map((c) => (
+                        <div
+                          className="_notification_box"
+                          key={c.id}
+                          onClick={() => {
+                            chat.openConversation(c);
+                            setMsgOpen(false);
+                          }}
+                        >
+                          <div className="_notification_image">
+                            <span className="_cdock_avatar">
+                              <Avatar user={c.user} size="h-10 w-10" />
+                              {c.user && chat.online.has(String(c.user.id)) && (
+                                <span className="_cdock_online_dot" />
+                              )}
+                            </span>
+                          </div>
+                          <div className="_notification_txt">
+                            <p className="_notification_para">
+                              <span className="_notify_txt_link">
+                                {c.user ? `${c.user.firstName} ${c.user.lastName}` : '...'}
+                              </span>
+                              {c.lastMessage && (
+                                <>
+                                  {' '}
+                                  {c.lastMessage.senderId === me?.id ? 'You: ' : ''}
+                                  {c.lastMessage.content.length > 40
+                                    ? `${c.lastMessage.content.slice(0, 40)}...`
+                                    : c.lastMessage.content}
+                                </>
+                              )}
+                            </p>
+                            <div className="_nitification_time">
+                              <span>{c.lastMessageAt ? timeAgo(c.lastMessageAt) : 'New conversation'}</span>
+                            </div>
+                          </div>
+                          {c.unreadCount > 0 && <span className="_cdock_badge">{c.unreadCount}</span>}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </span>
             </li>
           </ul>
           <div className="_header_nav_profile">

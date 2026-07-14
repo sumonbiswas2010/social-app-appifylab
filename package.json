@@ -4,9 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "next dev",
+    "dev": "node server.js",
     "build": "next build",
-    "start": "next start",
+    "start": "node server.js --prod",
     "db:sync": "node scripts/db-sync.js"
   },
   "dependencies": {
@@ -22,6 +22,8 @@
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "sequelize": "^6.37.0",
+    "socket.io": "^4.8.3",
+    "socket.io-client": "^4.8.3",
     "tailwindcss": "^4.3.2"
   },
   "description": "Minimal social feed built with Next.js (App Router, JS), Sequelize + PostgreSQL, JWT auth (access/refresh in httpOnly cookies), Google OAuth, and Cloudflare R2 for image uploads.",

@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { apiCall } from '@/lib/apiCall';
+import { getSocket } from '@/lib/socketClient';
+import ChatProvider from './chat/ChatProvider';
 import Navbar from './Navbar';
 import MobileNav from './MobileNav';
 import LeftSidebar from './LeftSidebar';
@@ -26,6 +28,20 @@ export default function Feed() {
       setCursor(data.nextCursor);
     });
   }, []);
+
+  // Live feed: new public posts from other users appear instantly
+  useEffect(() => {
+    if (!me) return;
+    const s = getSocket();
+    const onPost = (post) => {
+      setPosts((cur) => {
+        if (!cur || cur.some((p) => p.id === post.id)) return cur;
+        return [post, ...cur];
+      });
+    };
+    s.on('post:new', onPost);
+    return () => s.off('post:new', onPost);
+  }, [me]);
 
   function toggleDark() {
     const next = !dark;
@@ -70,6 +86,7 @@ export default function Feed() {
         </button>
       </div>
 
+      <ChatProvider me={me}>
       <div className="_main_layout">
         <Navbar me={me} />
         <MobileNav />
@@ -125,6 +142,7 @@ export default function Feed() {
           </div>
         </div>
       </div>
+      </ChatProvider>
     </div>
   );
 }

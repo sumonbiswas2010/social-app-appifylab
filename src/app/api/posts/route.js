@@ -6,6 +6,8 @@ import { requireAuth } from '@/lib/auth';
 import { uploadImage } from '@/lib/r2';
 import { cleanString, assert } from '@/lib/validate';
 import { USER_ATTRS, likedIds, reactionCounts, serializePost, cursorWhere } from '@/lib/social';
+import { emitToOthers } from '@/lib/live';
+import { notifyNewPost } from '@/lib/notify';
 
 // GET /api/posts?cursor=&limit= — newest first, public + own private
 export const GET = apiHandler(async (req) => {
@@ -52,5 +54,18 @@ export const POST = apiHandler(async (req) => {
   const imageUrl = hasImage ? await uploadImage(image) : null;
   const post = await db.Post.create({ userId: me.id, content, imageUrl, privacy });
   post.user = me;
+
+  // Realtime: public posts go out to every other connected user instantly,
+  // plus a stored notification per user. Never fail the request over this.
+  if (privacy === 'public') {
+    try {
+      // viewerId null → isMine/likedByMe are false for every receiver
+      emitToOthers(me.id, 'post:new', serializePost(post, null, null, {}));
+      await notifyNewPost(post, me);
+    } catch (err) {
+      console.error('post fan-out failed', err);
+    }
+  }
+
   return ok(serializePost(post, me.id, null, {}), 'Post created', 201);
 });

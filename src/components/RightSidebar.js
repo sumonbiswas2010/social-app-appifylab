@@ -1,53 +1,39 @@
-const FRIENDS = [
-  { name: 'Steve Jobs', title: 'CEO of Apple', img: '/assets/images/people1.png', status: '5 minute ago' },
-  { name: 'Ryan Roslansky', title: 'CEO of Linkedin', img: '/assets/images/people2.png', online: true },
-  { name: 'Dylan Field', title: 'CEO of Figma', img: '/assets/images/people3.png', online: true },
-  { name: 'Steve Jobs', title: 'CEO of Apple', img: '/assets/images/people1.png', status: '5 minute ago' },
-  { name: 'Ryan Roslansky', title: 'CEO of Linkedin', img: '/assets/images/people2.png', online: true },
-  { name: 'Dylan Field', title: 'CEO of Figma', img: '/assets/images/people3.png', online: true },
-];
+'use client';
+
+import { useEffect, useState } from 'react';
+import { apiCall } from '@/lib/apiCall';
+import Avatar from './Avatar';
+import { useChat } from './chat/ChatProvider';
 
 export default function RightSidebar() {
+  const chat = useChat();
+  const [users, setUsers] = useState(null);
+  const [query, setQuery] = useState('');
+
+  useEffect(() => {
+    apiCall('/api/chat/users')
+      .then((d) => setUsers(d.users))
+      .catch(() => setUsers([]));
+  }, []);
+
+  const online = chat?.online || new Set();
+  const shown = (users || []).filter((u) =>
+    `${u.firstName} ${u.lastName}`.toLowerCase().includes(query.trim().toLowerCase())
+  );
+  // Online people first, like Facebook's contacts rail
+  const sorted = [...shown].sort(
+    (a, b) => Number(online.has(String(b.id))) - Number(online.has(String(a.id)))
+  );
+
   return (
     <div className="_layout_right_sidebar_wrap">
-      <div className="_layout_right_sidebar_inner">
-        <div className="_right_inner_area_info _padd_t24 _padd_b24 _padd_r24 _padd_l24 _b_radious6 _feed_inner_area">
-          <div className="_right_inner_area_info_content _mar_b24">
-            <h4 className="_right_inner_area_info_content_title _title5">You Might Like</h4>
-            <span className="_right_inner_area_info_content_txt">
-              <a className="_right_inner_area_info_content_txt_link" href="#0">See All</a>
-            </span>
-          </div>
-          <hr className="_underline" />
-          <div className="_right_inner_area_info_ppl">
-            <div className="_right_inner_area_info_box">
-              <div className="_right_inner_area_info_box_image">
-                <a href="#0">
-                  <img src="/assets/images/Avatar.png" alt="Radovan" className="_ppl_img" />
-                </a>
-              </div>
-              <div className="_right_inner_area_info_box_txt">
-                <a href="#0">
-                  <h4 className="_right_inner_area_info_box_title">Radovan SkillArena</h4>
-                </a>
-                <p className="_right_inner_area_info_box_para">Founder &amp; CEO at Trophy</p>
-              </div>
-            </div>
-            <div className="_right_info_btn_grp">
-              <button type="button" className="_right_info_btn_link">Ignore</button>
-              <button type="button" className="_right_info_btn_link _right_info_btn_link_active">Follow</button>
-            </div>
-          </div>
-        </div>
-      </div>
-
       <div className="_layout_right_sidebar_inner">
         <div className="_feed_right_inner_area_card _padd_t24 _padd_b6 _padd_r24 _padd_l24 _b_radious6 _feed_inner_area">
           <div className="_feed_top_fixed">
             <div className="_feed_right_inner_area_card_content _mar_b24">
               <h4 className="_feed_right_inner_area_card_content_title _title5">Your Friends</h4>
               <span className="_feed_right_inner_area_card_content_txt">
-                <a className="_feed_right_inner_area_card_content_txt_link" href="#0">See All</a>
+                <a className="_feed_right_inner_area_card_content_txt_link" href="/messages">See All</a>
               </span>
             </div>
             <form className="_feed_right_inner_area_card_form" onSubmit={(e) => e.preventDefault()}>
@@ -55,39 +41,57 @@ export default function RightSidebar() {
                 <circle cx="7" cy="7" r="6" stroke="#666"></circle>
                 <path stroke="#666" strokeLinecap="round" d="M16 16l-3-3"></path>
               </svg>
-              <input className="form-control me-2 _feed_right_inner_area_card_form_inpt" type="search" placeholder="input search text" aria-label="Search" />
+              <input
+                className="form-control me-2 _feed_right_inner_area_card_form_inpt"
+                type="search"
+                placeholder="Search friends"
+                aria-label="Search"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+              />
             </form>
           </div>
           <div className="_feed_bottom_fixed">
-            {FRIENDS.map((f, i) => (
-              <div
-                className={`_feed_right_inner_area_card_ppl${f.online ? '' : ' _feed_right_inner_area_card_ppl_inactive'}`}
-                key={i}
-              >
-                <div className="_feed_right_inner_area_card_ppl_box">
-                  <div className="_feed_right_inner_area_card_ppl_image">
-                    <a href="#0">
-                      <img src={f.img} alt={f.name} className="_box_ppl_img" />
-                    </a>
+            {!users && <p style={{ padding: '12px 0', color: '#888', fontSize: 14 }}>Loading...</p>}
+            {users && sorted.length === 0 && (
+              <p style={{ padding: '12px 0', color: '#888', fontSize: 14 }}>No people found</p>
+            )}
+            {sorted.map((u) => {
+              const isOnline = online.has(String(u.id));
+              return (
+                <div
+                  className={`_feed_right_inner_area_card_ppl${isOnline ? '' : ' _feed_right_inner_area_card_ppl_inactive'}`}
+                  key={u.id}
+                  onClick={() => chat?.openChatWith(u)}
+                  role="button"
+                  tabIndex={0}
+                  style={{ cursor: 'pointer' }}
+                >
+                  <div className="_feed_right_inner_area_card_ppl_box">
+                    <div className="_feed_right_inner_area_card_ppl_image">
+                      <Avatar user={u} size="h-10 w-10" />
+                    </div>
+                    <div className="_feed_right_inner_area_card_ppl_txt">
+                      <h4 className="_feed_right_inner_area_card_ppl_title">
+                        {u.firstName} {u.lastName}
+                      </h4>
+                      <p className="_feed_right_inner_area_card_ppl_para">
+                        {isOnline ? 'Active now' : 'Offline'}
+                      </p>
+                    </div>
                   </div>
-                  <div className="_feed_right_inner_area_card_ppl_txt">
-                    <a href="#0">
-                      <h4 className="_feed_right_inner_area_card_ppl_title">{f.name}</h4>
-                    </a>
-                    <p className="_feed_right_inner_area_card_ppl_para">{f.title}</p>
+                  <div className="_feed_right_inner_area_card_ppl_side">
+                    {isOnline ? (
+                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 14 14">
+                        <rect width="12" height="12" x="1" y="1" fill="#0ACF83" stroke="#fff" strokeWidth="2" rx="6" />
+                      </svg>
+                    ) : (
+                      <span></span>
+                    )}
                   </div>
                 </div>
-                <div className="_feed_right_inner_area_card_ppl_side">
-                  {f.online ? (
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 14 14">
-                      <rect width="12" height="12" x="1" y="1" fill="#0ACF83" stroke="#fff" strokeWidth="2" rx="6" />
-                    </svg>
-                  ) : (
-                    <span>{f.status}</span>
-                  )}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </div>
