@@ -1,4 +1,5 @@
 import './globals.css';
+import Script from 'next/script';
 import ThemeToggle from '@/components/ThemeToggle';
 
 export const metadata = {
@@ -23,6 +24,13 @@ export default function RootLayout({ children }) {
         />
       </head>
       <body className="min-h-screen bg-page font-sans text-ink antialiased dark:bg-dpage dark:text-white">
+        <Script id="ms-clarity" strategy="afterInteractive">
+          {`(function(c,l,a,r,i,t,y){
+            c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
+            t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
+            y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
+          })(window, document, "clarity", "script", "xm7b2n0l65");`}
+        </Script>
         {/* <ThemeToggle /> */}
         {children}
       </body>
