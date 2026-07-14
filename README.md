@@ -4,8 +4,6 @@ A minimal social feed built from a provided HTML/CSS template (Login, Register, 
 
 **Stack:** Next.js 15 (App Router, JS) · Sequelize + PostgreSQL · JWT auth (access/refresh in httpOnly cookies) · Google OAuth · Cloudflare R2 for images · **Pusher Channels** for realtime.
 
-> A deep technical write-up lives in [ARCHITECTURE.md](ARCHITECTURE.md).
-
 ## Features
 
 - **Auth** — email/password register & login plus Google OAuth. 15-minute access token + 30-day refresh token in httpOnly cookies; sessions refresh silently on both page loads (middleware) and API calls (`apiCall`).
