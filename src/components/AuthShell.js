@@ -22,7 +22,7 @@ export function GoogleButton({ label }) {
     <button
       type="button"
       onClick={() => (window.location.href = '/api/auth/google')}
-      className="mb-8 flex w-full items-center justify-center gap-3 rounded-md border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-muted shadow-sm transition hover:shadow dark:border-dhover dark:bg-dcard dark:text-gray-300"
+      className="cursor-pointer mb-8 flex w-full items-center justify-center gap-3 rounded-md border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-muted shadow-sm transition hover:shadow dark:border-dhover dark:bg-dcard dark:text-gray-300"
     >
       <img src="/assets/images/google.svg" alt="" className="h-5 w-5" />
       <span>{label}</span>

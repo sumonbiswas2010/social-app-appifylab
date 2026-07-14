@@ -126,7 +126,7 @@ export default function ChatWindow({ conversation, minimized }) {
             {messages?.map((m, i) => {
               const mine = String(m.senderId) === String(me.id);
               return (
-                <div key={m.id} className={`_cdock_row${mine ? ' _cdock_row_mine' : ''}`}>
+                <div key={m.id} className={`_cdock_row${mine ? ' _cdock_row_mine flex flex-col gap-1' : ''}`}>
                   {!mine && <Avatar user={other} size="h-6 w-6" textSize="text-[10px]" />}
                   <div
                     className={`_cdock_bubble${mine ? ' _cdock_bubble_mine' : ''}`}

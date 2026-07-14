@@ -37,15 +37,15 @@ export default function Navbar({ me }) {
 
   // Realtime: prepend incoming notifications and bump the badge
   useEffect(() => {
-    const s = chat?.socket;
-    if (!s) return;
+    const ch = chat?.userChannel;
+    if (!ch) return;
     const onNotification = (n) => {
       setNotifs((cur) => [n, ...(cur || [])]);
       setUnreadCount((c) => c + 1);
     };
-    s.on('notification:new', onNotification);
-    return () => s.off('notification:new', onNotification);
-  }, [chat?.socket]);
+    ch.bind('notification:new', onNotification);
+    return () => ch.unbind('notification:new', onNotification);
+  }, [chat?.userChannel]);
 
   function markAllRead() {
     apiCall('/api/notifications/read', { method: 'POST', body: {} })

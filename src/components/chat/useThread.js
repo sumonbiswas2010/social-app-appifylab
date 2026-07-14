@@ -10,7 +10,7 @@ import { useChat } from './ChatProvider';
 // `active` = the thread is visible to the user, so incoming messages are
 // marked read immediately.
 export default function useThread(conversation, { active = true } = {}) {
-  const { me, socket, clearUnread } = useChat();
+  const { me, userChannel, clearUnread } = useChat();
   const convoId = conversation.id;
   const otherId = conversation.user?.id;
 
@@ -48,7 +48,7 @@ export default function useThread(conversation, { active = true } = {}) {
 
   // Live updates for this conversation only
   useEffect(() => {
-    if (!socket) return;
+    if (!userChannel) return;
 
     const isMine = (id) => String(id) === String(me.id);
 
@@ -77,16 +77,16 @@ export default function useThread(conversation, { active = true } = {}) {
       if (data.typing) typingTimer.current = setTimeout(() => setTyping(false), 3000);
     };
 
-    socket.on('chat:message', onMessage);
-    socket.on('chat:read', onRead);
-    socket.on('chat:typing', onTyping);
+    userChannel.bind('chat:message', onMessage);
+    userChannel.bind('chat:read', onRead);
+    userChannel.bind('chat:typing', onTyping);
     return () => {
-      socket.off('chat:message', onMessage);
-      socket.off('chat:read', onRead);
-      socket.off('chat:typing', onTyping);
+      userChannel.unbind('chat:message', onMessage);
+      userChannel.unbind('chat:read', onRead);
+      userChannel.unbind('chat:typing', onTyping);
       clearTimeout(typingTimer.current);
     };
-  }, [socket, convoId, me.id]);
+  }, [userChannel, convoId, me.id]);
 
   const send = useCallback(
     async (content) => {
@@ -112,11 +112,16 @@ export default function useThread(conversation, { active = true } = {}) {
     }
   }, [convoId, cursor, loadingOlder]);
 
+  // Typing is relayed through the server (throttled to start/stop, so the
+  // extra request is cheap) rather than a peer-to-peer socket message.
   const emitTyping = useCallback(
     (isTyping) => {
-      socket?.emit('chat:typing', { conversationId: convoId, toUserId: otherId, typing: isTyping });
+      apiCall(`/api/chat/conversations/${convoId}/typing`, {
+        method: 'POST',
+        body: { typing: isTyping },
+      }).catch(() => {});
     },
-    [socket, convoId, otherId]
+    [convoId]
   );
 
   return { messages, hasMore: !!cursor, loadingOlder, loadOlder, send, typing, emitTyping, markRead };

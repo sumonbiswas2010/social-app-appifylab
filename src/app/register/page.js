@@ -88,7 +88,7 @@ export default function RegisterPage() {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="mt-8 flex w-full items-center justify-center gap-2 rounded-md bg-brand py-3 text-sm font-semibold text-white transition hover:bg-brand-2 disabled:opacity-60"
+                  className="cursor-pointer mt-8 flex w-full items-center justify-center gap-2 rounded-md bg-brand py-3 text-sm font-semibold text-white transition hover:bg-brand-2 disabled:opacity-60"
                 >
                   {loading && <Spinner />}
                   {loading ? 'Creating account...' : 'Register now'}

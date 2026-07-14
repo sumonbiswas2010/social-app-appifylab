@@ -2,7 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { apiCall } from '@/lib/apiCall';
-import { getSocket } from '@/lib/socketClient';
+import { getPusher } from '@/lib/pusherClient';
 import ChatDock from './ChatDock';
 import Toasts from './Toasts';
 
@@ -21,7 +21,7 @@ let toastSeq = 0;
 // autoOpen: pop a dock window when a message arrives (disabled on the full
 // /messages page, where the thread is already on screen)
 export default function ChatProvider({ me, children, autoOpen = true }) {
-  const [socket, setSocket] = useState(null);
+  const [userChannel, setUserChannel] = useState(null);
   const [online, setOnline] = useState(() => new Set());
   const [convos, setConvos] = useState([]);
   const [openChats, setOpenChats] = useState([]); // [{ conversation, minimized }]
@@ -98,11 +98,20 @@ export default function ChatProvider({ me, children, autoOpen = true }) {
 
   useEffect(() => {
     if (!meId) return;
-    const s = getSocket();
-    setSocket(s);
+    const pusher = getPusher();
+    // Targeted events for me: chat, read receipts, notifications, typing.
+    const channel = pusher.subscribe(`private-user-${meId}`);
+    setUserChannel(channel);
     refreshConvosRef.current();
 
-    const onPresence = (ids) => setOnline(new Set(ids.map(String)));
+    // Presence channel membership is the online-user set (replaces the
+    // server-side presence map the old socket server kept).
+    const presence = pusher.subscribe('presence-online');
+    const syncOnline = () =>
+      setOnline(new Set(Object.keys(presence.members?.members || {})));
+    presence.bind('pusher:subscription_succeeded', syncOnline);
+    presence.bind('pusher:member_added', syncOnline);
+    presence.bind('pusher:member_removed', syncOnline);
 
     const onMessage = ({ message, conversation }) => {
       if (conversation) {
@@ -131,13 +140,17 @@ export default function ChatProvider({ me, children, autoOpen = true }) {
       }
     };
 
-    s.on('presence:update', onPresence);
-    s.on('chat:message', onMessage);
-    s.on('notification:new', onNotification);
+    channel.bind('chat:message', onMessage);
+    channel.bind('notification:new', onNotification);
     return () => {
-      s.off('presence:update', onPresence);
-      s.off('chat:message', onMessage);
-      s.off('notification:new', onNotification);
+      channel.unbind('chat:message', onMessage);
+      channel.unbind('notification:new', onNotification);
+      presence.unbind('pusher:subscription_succeeded', syncOnline);
+      presence.unbind('pusher:member_added', syncOnline);
+      presence.unbind('pusher:member_removed', syncOnline);
+      pusher.unsubscribe(`private-user-${meId}`);
+      pusher.unsubscribe('presence-online');
+      setUserChannel(null);
     };
   }, [meId]);
 
@@ -149,7 +162,7 @@ export default function ChatProvider({ me, children, autoOpen = true }) {
   const value = useMemo(
     () => ({
       me,
-      socket,
+      userChannel,
       online,
       convos,
       totalUnread,
@@ -162,7 +175,7 @@ export default function ChatProvider({ me, children, autoOpen = true }) {
       refreshConvos,
       pushToast,
     }),
-    [me, socket, online, convos, totalUnread, openChats, openChatWith, openConversation, closeChat, toggleMinimize, clearUnread, refreshConvos, pushToast]
+    [me, userChannel, online, convos, totalUnread, openChats, openChatWith, openConversation, closeChat, toggleMinimize, clearUnread, refreshConvos, pushToast]
   );
 
   return (

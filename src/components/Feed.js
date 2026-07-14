@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { apiCall } from '@/lib/apiCall';
-import { getSocket } from '@/lib/socketClient';
+import { getPusher } from '@/lib/pusherClient';
 import ChatProvider from './chat/ChatProvider';
 import Navbar from './Navbar';
 import MobileNav from './MobileNav';
@@ -32,15 +32,21 @@ export default function Feed() {
   // Live feed: new public posts from other users appear instantly
   useEffect(() => {
     if (!me) return;
-    const s = getSocket();
+    const pusher = getPusher();
+    const channel = pusher.subscribe('feed');
     const onPost = (post) => {
+      // Skip my own posts — I already have them from the create response
+      if (String(post._authorId) === String(me.id)) return;
       setPosts((cur) => {
         if (!cur || cur.some((p) => p.id === post.id)) return cur;
         return [post, ...cur];
       });
     };
-    s.on('post:new', onPost);
-    return () => s.off('post:new', onPost);
+    channel.bind('post:new', onPost);
+    return () => {
+      channel.unbind('post:new', onPost);
+      pusher.unsubscribe('feed');
+    };
   }, [me]);
 
   function toggleDark() {
