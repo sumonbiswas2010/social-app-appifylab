@@ -72,5 +72,3 @@ src/components/     Feed, Navbar, sidebars, PostCard, chat/ (provider, dock, hoo
 public/assets/      Provided template CSS/images + custom chat-dock.css
 scripts/db-sync.js  Table creation/migration from models
 ```
-
-Built as a job-interview take-home; requirements are in `requirements.md`.
