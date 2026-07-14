@@ -90,14 +90,37 @@ export default function useThread(conversation, { active = true } = {}) {
 
   const send = useCallback(
     async (content) => {
-      const msg = await apiCall(`/api/chat/conversations/${convoId}/messages`, {
-        method: 'POST',
-        body: { content },
-      });
-      setMessages((cur) => (cur && !cur.some((m) => m.id === msg.id) ? [...cur, msg] : cur));
-      return msg;
+      // Show the message instantly, then reconcile with the saved row. The
+      // Pusher echo dedupes against the temp id / real id below.
+      const tempId = `temp-${Date.now()}-${Math.random()}`;
+      const optimistic = {
+        id: tempId,
+        conversationId: String(convoId),
+        senderId: String(me.id),
+        content,
+        readAt: null,
+        createdAt: new Date().toISOString(),
+        pending: true,
+      };
+      setMessages((cur) => (cur ? [...cur, optimistic] : [optimistic]));
+      try {
+        const msg = await apiCall(`/api/chat/conversations/${convoId}/messages`, {
+          method: 'POST',
+          body: { content },
+        });
+        setMessages((cur) => {
+          if (!cur) return cur;
+          const withoutTemp = cur.filter((m) => m.id !== tempId);
+          // the Pusher echo may already have added the real message
+          return withoutTemp.some((m) => m.id === msg.id) ? withoutTemp : [...withoutTemp, msg];
+        });
+        return msg;
+      } catch (err) {
+        setMessages((cur) => (cur ? cur.filter((m) => m.id !== tempId) : cur));
+        throw err;
+      }
     },
-    [convoId]
+    [convoId, me.id]
   );
 
   const loadOlder = useCallback(async () => {

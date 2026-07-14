@@ -123,7 +123,8 @@ export default function PostCard({ me, post, onDeleted }) {
     try {
       const qs = more && cursor ? `?cursor=${cursor}` : '';
       const data = await apiCall(`/api/posts/${item.id}/comments${qs}`);
-      setComments((cur) => (more ? [...data.comments.reverse(), ...(cur || [])] : data.comments.reverse()));
+      // API returns newest-first; keep that order (latest on top), older pages append below.
+      setComments((cur) => (more ? [...(cur || []), ...data.comments] : data.comments));
       setCursor(data.nextCursor);
     } finally {
       setLoadingComments(false);
@@ -134,13 +135,36 @@ export default function PostCard({ me, post, onDeleted }) {
     if (!comments) loadComments();
   }
 
+  // Optimistic: show the comment immediately, reconcile with the server row,
+  // and roll it back with a message if the request fails.
   async function addComment(content) {
-    const comment = await apiCall(`/api/posts/${item.id}/comments`, {
-      method: 'POST',
-      body: { content },
-    });
-    setComments((cur) => [...(cur || []), comment]);
+    const tempId = `temp-${Date.now()}-${Math.random()}`;
+    const optimistic = {
+      id: tempId,
+      postId: String(item.id),
+      parentId: null,
+      content,
+      likesCount: 0,
+      repliesCount: 0,
+      createdAt: new Date().toISOString(),
+      user: me,
+      isMine: true,
+      likedByMe: false,
+      pending: true,
+    };
+    setComments((cur) => [optimistic, ...(cur || [])]);
     setItem((cur) => ({ ...cur, commentsCount: cur.commentsCount + 1 }));
+    try {
+      const saved = await apiCall(`/api/posts/${item.id}/comments`, {
+        method: 'POST',
+        body: { content },
+      });
+      setComments((cur) => (cur || []).map((c) => (c.id === tempId ? saved : c)));
+    } catch (err) {
+      setComments((cur) => (cur || []).filter((c) => c.id !== tempId));
+      setItem((cur) => ({ ...cur, commentsCount: Math.max(0, cur.commentsCount - 1) }));
+      window.alert(err?.message || 'Failed to add comment');
+    }
   }
 
   async function deletePost() {

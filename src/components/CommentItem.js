@@ -41,18 +41,41 @@ export default function CommentItem({ me, comment, isReply = false }) {
     }
   }
 
+  // Optimistic: add the reply right away, reconcile with the saved row,
+  // roll back with a message on failure.
   async function addReply(content) {
-    const reply = await apiCall(`/api/comments/${item.id}/replies`, {
-      method: 'POST',
-      body: { content },
-    });
-    setReplies((cur) => [...(cur || []), reply]);
+    const tempId = `temp-${Date.now()}-${Math.random()}`;
+    const optimistic = {
+      id: tempId,
+      postId: item.postId,
+      parentId: String(item.id),
+      content,
+      likesCount: 0,
+      repliesCount: 0,
+      createdAt: new Date().toISOString(),
+      user: me,
+      isMine: true,
+      likedByMe: false,
+      pending: true,
+    };
+    setReplies((cur) => [...(cur || []), optimistic]);
     setItem((cur) => ({ ...cur, repliesCount: cur.repliesCount + 1 }));
     setShowReplyBox(false);
+    try {
+      const reply = await apiCall(`/api/comments/${item.id}/replies`, {
+        method: 'POST',
+        body: { content },
+      });
+      setReplies((cur) => (cur || []).map((r) => (r.id === tempId ? reply : r)));
+    } catch (err) {
+      setReplies((cur) => (cur || []).filter((r) => r.id !== tempId));
+      setItem((cur) => ({ ...cur, repliesCount: Math.max(0, cur.repliesCount - 1) }));
+      window.alert(err?.message || 'Failed to add reply');
+    }
   }
 
   return (
-    <div className="_comment_main">
+    <div className="_comment_main" style={item.pending ? { opacity: 0.55 } : undefined}>
       <div className="_comment_image">
         <a href="#0" className="_comment_image_link">
           <Avatar user={item.user} size="h-10 w-10" />

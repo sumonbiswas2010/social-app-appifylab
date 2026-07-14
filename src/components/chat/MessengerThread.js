@@ -62,8 +62,9 @@ export default function MessengerThread({ conversation }) {
     stopTypingSignal();
     try {
       await send(content);
-    } catch {
+    } catch (err) {
       setDraft(content);
+      window.alert(err?.message || 'Message failed to send');
     }
   }
 
@@ -125,7 +126,7 @@ export default function MessengerThread({ conversation }) {
                 </div>
               )}
               {mine ? (
-                <div className="_chat_middle_box_reciver">
+                <div className="_chat_middle_box_reciver" style={m.pending ? { opacity: 0.6 } : undefined}>
                   <div className="_chat_middle_box_reciver_area">
                     <div className="_chat_middle_message">
                       <div className="_chat_middle_box_sender_txt">

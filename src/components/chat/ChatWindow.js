@@ -55,8 +55,9 @@ export default function ChatWindow({ conversation, minimized }) {
     stopTypingSignal();
     try {
       await send(content);
-    } catch {
-      setDraft(content); // let the user retry
+    } catch (err) {
+      setDraft(content); // restore so the user can retry
+      window.alert(err?.message || 'Message failed to send');
     }
   }
 
@@ -131,6 +132,7 @@ export default function ChatWindow({ conversation, minimized }) {
                   <div
                     className={`_cdock_bubble${mine ? ' _cdock_bubble_mine' : ''}`}
                     title={new Date(m.createdAt).toLocaleString()}
+                    style={m.pending ? { opacity: 0.6 } : undefined}
                   >
                     {m.content}
                   </div>
