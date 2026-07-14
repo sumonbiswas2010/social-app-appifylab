@@ -23,7 +23,7 @@ export default function RootLayout({ children }) {
         />
       </head>
       <body className="min-h-screen bg-page font-sans text-ink antialiased dark:bg-dpage dark:text-white">
-        <ThemeToggle />
+        {/* <ThemeToggle /> */}
         {children}
       </body>
     </html>
